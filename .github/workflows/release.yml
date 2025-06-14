@@ -1,0 +1,78 @@
+name: Build Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: Build ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            artifact_name: jiangtokoto-server
+            asset_name: jiangtokoto-server-linux-amd64
+          - os: windows-latest
+            artifact_name: jiangtokoto-server.exe
+            asset_name: jiangtokoto-server-windows-amd64.exe
+          - os: macos-latest
+            artifact_name: jiangtokoto-server
+            asset_name: jiangtokoto-server-macos-amd64
+
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+      
+      - name: Build Release
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --release
+      
+      - name: Prepare assets
+        shell: bash
+        run: |
+          mkdir -p ./dist
+          cp ./target/release/${{ matrix.artifact_name }} ./dist/${{ matrix.asset_name }}
+          cp config.yml.example ./dist/
+          cp -r assets ./dist/
+      
+      - name: Package Release
+        shell: bash
+        run: |
+          cd dist
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            7z a ../jiangtokoto-server-${{ matrix.os }}.zip .
+          else
+            tar -czf ../jiangtokoto-server-${{ matrix.os }}.tar.gz .
+          fi
+      
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: jiangtokoto-server-${{ matrix.os }}
+          path: |
+            jiangtokoto-server-${{ matrix.os }}.*
+      
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            jiangtokoto-server-${{ matrix.os }}.*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
