@@ -1,0 +1,35 @@
+# Rust 构建目录
+/target/
+
+# IDE 配置
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Rust 编译文件
+**/*.rs.bk
+*.pdb
+
+# 调试文件
+*.pdb
+*.exp
+*.lib
+
+# 环境变量文件
+.env
+.env.*
+
+# 操作系统文件
+.DS_Store
+Thumbs.db
+
+# 日志文件
+*.log
+
+# 缓存文件
+.cargo/
+*.bak
+
+# 本地配置文件，使用 config.yml.example 作为模板
+config.yml

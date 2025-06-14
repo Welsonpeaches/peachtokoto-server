@@ -1,0 +1,18 @@
+# Server Configuration
+server:
+  # The host address to bind to
+  host: "0.0.0.0"
+  # The port to listen on
+  port: 3000
+
+# Storage Configuration
+storage:
+  # Directory containing meme images
+  memes_dir: "assets/memes"
+
+# Cache Configuration
+cache:
+  # Maximum number of images to cache in memory
+  max_size: 100
+  # Cache time-to-live in seconds
+  ttl_secs: 300
