@@ -12,6 +12,7 @@ use tower_http::{
 };
 use tracing::{Level, info, Span};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+use tracing_appender::rolling::{RollingFileAppender, Rotation};
 use crate::utils::error::AppError;
 
 #[derive(Clone)]
@@ -36,12 +37,36 @@ mod utils;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // 初始化日志
+    // 加载配置文件
+    let config = config::Config::load_from_file("config.yml")?;
+    
+    // 确保日志目录存在
+    std::fs::create_dir_all(&config.logging.directory)?;
+
+    // 设置文件日志appender
+    let file_appender = RollingFileAppender::builder()
+        .rotation(Rotation::DAILY)
+        .filename_prefix(&config.logging.file_prefix)
+        .filename_suffix("log")
+        .build(&config.logging.directory)  // 使用 build() 方法直接指定目录
+        .expect("创建日志文件失败");
+
+    // 初始化日志系统
     tracing_subscriber::registry()
         .with(tracing_subscriber::EnvFilter::try_from_default_env()
             .unwrap_or_else(|_| "info".into()))
-        .with(tracing_subscriber::fmt::layer())
+        .with(tracing_subscriber::fmt::layer()
+            .with_writer(file_appender)
+            .with_ansi(false)
+            .with_file(true)
+            .with_line_number(true)
+            .with_thread_ids(true)
+            .with_thread_names(true)
+            .with_target(false))
+        .with(tracing_subscriber::fmt::layer().with_writer(std::io::stdout))
         .init();
+
+    tracing::info!("日志系统初始化完成");
 
     // 加载配置文件
     let config = config::Config::load_from_file("config.yml")?;

@@ -29,10 +29,27 @@ pub struct CacheConfig {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct LoggingConfig {
+    pub directory: String,
+    pub file_prefix: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Config {
     pub server: ServerConfig,
     pub storage: StorageConfig,
     pub cache: CacheConfig,
+    #[serde(default)]
+    pub logging: LoggingConfig,
+}
+
+impl Default for LoggingConfig {
+    fn default() -> Self {
+        Self {
+            directory: "logs".to_string(),
+            file_prefix: "jiangtokoto".to_string(),
+        }
+    }
 }
 
 impl Default for ProxyConfig {
@@ -59,6 +76,7 @@ impl Default for Config {
                 max_size: 100,
                 ttl_secs: 300,
             },
+            logging: LoggingConfig::default(),
         }
     }
 }
@@ -68,33 +86,35 @@ impl Config {
         let path = path.as_ref();
 
         // 如果配置文件不存在，创建默认配置
+        // 如果配置文件不存在
         if !path.exists() {
-            tracing::info!("配置文件不存在，创建默认配置");
-            let config = Config::default();
-            let config_str = serde_yaml::to_string(&config)
-                .map_err(|e| AppError::Internal(format!("Failed to serialize default config: {}", e)))?;
+            // 检查示例配置文件是否存在
+            let example_path = path.with_extension("yml.example");
+            
+            if example_path.exists() {
+                tracing::info!("从示例配置创建新的配置文件");
+                fs::copy(&example_path, path)
+                    .map_err(|e| AppError::Internal(format!("复制示例配置文件失败: {}", e)))?;
+            } else {
+                // 如果示例配置不存在，创建默认配置
+                tracing::info!("配置文件不存在，创建默认配置");
+                let config = Config::default();
+                let config_str = serde_yaml::to_string(&config)
+                    .map_err(|e| AppError::Internal(format!("序列化默认配置失败: {}", e)))?;
 
-            // 确保目录存在
-            if let Some(parent) = path.parent() {
-                if !parent.exists() {
-                    fs::create_dir_all(parent)
-                        .map_err(|e| AppError::Internal(format!("Failed to create config directory: {}", e)))?;
+                // 确保目录存在
+                if let Some(parent) = path.parent() {
+                    if !parent.exists() {
+                        fs::create_dir_all(parent)
+                            .map_err(|e| AppError::Internal(format!("创建配置目录失败: {}", e)))?;
+                    }
                 }
+
+                fs::write(path, config_str)
+                    .map_err(|e| AppError::Internal(format!("写入默认配置文件失败: {}", e)))?;
+
+                tracing::info!("默认配置文件已创建: {:?}", path);
             }
-
-            fs::write(path, config_str)
-                .map_err(|e| AppError::Internal(format!("Failed to write default config file: {}", e)))?;
-
-            tracing::info!("默认配置文件已创建: {:?}", path);
-
-            // 创建 memes 目录
-            if !Path::new(&config.storage.memes_dir).exists() {
-                fs::create_dir_all(&config.storage.memes_dir)
-                    .map_err(|e| AppError::Internal(format!("Failed to create memes directory: {}", e)))?;
-                tracing::info!("表情包目录已创建: {}", config.storage.memes_dir);
-            }
-
-            return Ok(Arc::new(config));
         }
 
         // 读取现有配置
@@ -137,5 +157,6 @@ pub fn load_config() -> std::io::Result<Arc<Config>> {
             max_size: 1024,
             ttl_secs: 3600,
         },
+        logging: LoggingConfig::default(),
     }))
 }

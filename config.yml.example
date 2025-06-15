@@ -1,24 +1,31 @@
-# Server Configuration
+# 服务器配置 Server Configuration
 server:
-  # The host address to bind to
+  # 服务器绑定的主机地址 The host address to bind to
   host: "0.0.0.0"
-  # The port to listen on
+  # 监听的端口号 The port to listen on
   port: 3000
-  # Proxy configuration
+  # 代理服务器配置 Proxy configuration
   proxy:
-    # Whether to trust proxy headers
+    # 是否启用代理头信息 Whether to trust proxy headers
     enabled: false
-    # Header to get real IP from (x-forwarded-for, x-real-ip, etc)
+    # 获取真实IP的请求头 (可以是 x-forwarded-for, x-real-ip 等)
     ip_header: "x-forwarded-for"
 
-# Storage Configuration
-storage:
-  # Directory containing meme images
-  memes_dir: "assets/memes"
+# 日志配置 Logging Configuration
+logging:
+  # 日志文件目录
+  directory: "logs"
+  # 日志文件前缀
+  file_prefix: "jiangtokoto"
 
-# Cache Configuration
+# 存储配置 Storage Configuration
+storage:
+  # 表情包图片存储目录
+  memes_dir: "assets/jiangtokoto-images/images"
+
+# 缓存配置 Cache Configuration
 cache:
-  # Maximum number of images to cache in memory
+  # 内存中缓存的最大图片数量
   max_size: 100
-  # Cache time-to-live in seconds
+  # 缓存生存时间（秒）
   ttl_secs: 300
