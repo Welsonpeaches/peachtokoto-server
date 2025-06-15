@@ -28,16 +28,37 @@
 
 2. 编辑 `config.yml` 配置文件：
    ```yaml
-   server:
-     host: "0.0.0.0"  # 监听地址
-     port: 3000       # 监听端口
+  # 服务器配置
+  server:
+    # 服务器绑定的主机地址
+    host: "0.0.0.0"
+    # 监听的端口号
+    port: 3000
+    # 代理服务器配置
+    proxy:
+      # 是否启用代理头信息
+      enabled: false
+      # 获取真实IP的请求头
+      ip_header: "x-forwarded-for"
 
-   storage:
-     memes_dir: "assets/memes"  # 表情包目录
+  # 日志配置 Logging Configuration
+  logging:
+    # 日志文件目录
+    directory: "logs"
+    # 日志文件前缀
+    file_prefix: "jiangtokoto"
 
-   cache:
-     max_size: 100    # 缓存大小
-     ttl_secs: 300    # 缓存过期时间
+  # 存储配置 Storage Configuration
+  storage:
+    # 表情包图片存储目录
+    memes_dir: "assets/jiangtokoto-images/images"
+
+  # 缓存配置 Cache Configuration
+  cache:
+    # 内存中缓存的最大图片数量
+    max_size: 100
+    # 缓存生存时间（秒）
+    ttl_secs: 300
    ```
 
 ### 3. 构建和运行
