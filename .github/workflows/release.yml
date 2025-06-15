@@ -27,7 +27,7 @@ jobs:
             asset_name: jiangtokoto-server-windows-amd64.exe
           - os: macos-latest
             artifact_name: jiangtokoto-server
-            asset_name: jiangtokoto-server-macos-amd64
+            asset_name: jiangtokoto-server-macos-aarch64
 
     steps:
       - uses: actions/checkout@v4
