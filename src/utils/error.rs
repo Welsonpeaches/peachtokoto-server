@@ -12,6 +12,8 @@ pub enum AppError {
     Internal(String),
     #[error("Not found: {0}")]
     NotFound(String),
+    #[error("File system error: {0}")]
+    FileSystem(#[from] notify::Error),
 }
 
 impl IntoResponse for AppError {
@@ -23,6 +25,10 @@ impl IntoResponse for AppError {
             ),
             AppError::Internal(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg),
             AppError::NotFound(msg) => (StatusCode::NOT_FOUND, msg),
+            AppError::FileSystem(err) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("File System Error: {}", err),
+            ),
         };
 
         (status, message).into_response()
