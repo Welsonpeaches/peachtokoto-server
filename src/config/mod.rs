@@ -4,9 +4,17 @@ use serde::{Deserialize, Serialize};
 use std::{fs, path::Path, sync::Arc};
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct ProxyConfig {
+    pub enabled: bool,
+    pub ip_header: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ServerConfig {
     pub host: String,
     pub port: u16,
+    #[serde(default)]
+    pub proxy: ProxyConfig,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -27,12 +35,22 @@ pub struct Config {
     pub cache: CacheConfig,
 }
 
+impl Default for ProxyConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            ip_header: "x-forwarded-for".to_string(),
+        }
+    }
+}
+
 impl Default for Config {
     fn default() -> Self {
         Self {
             server: ServerConfig {
                 host: "0.0.0.0".to_string(),
                 port: 3001,
+                proxy: ProxyConfig::default(),
             },
             storage: StorageConfig {
                 memes_dir: "assets/jiangtokoto-images/images".to_string(),
@@ -112,6 +130,7 @@ pub fn load_config() -> std::io::Result<Arc<Config>> {
         server: ServerConfig {
             host: "0.0.0.0".to_string(),
             port,
+            proxy: ProxyConfig::default(),
         },
         storage: StorageConfig { memes_dir },
         cache: CacheConfig {

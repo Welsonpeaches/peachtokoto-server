@@ -4,6 +4,12 @@ server:
   host: "0.0.0.0"
   # The port to listen on
   port: 3000
+  # Proxy configuration
+  proxy:
+    # Whether to trust proxy headers
+    enabled: false
+    # Header to get real IP from (x-forwarded-for, x-real-ip, etc)
+    ip_header: "x-forwarded-for"
 
 # Storage Configuration
 storage:

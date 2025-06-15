@@ -5,11 +5,9 @@ use axum::{
 };
 use std::sync::Arc;
 use tokio::sync::RwLock;
+use tracing::info;
 
-use crate::{
-    services::meme::MemeService,
-    models::meme::MemeResponse,
-};
+use crate::services::meme::MemeService;
 
 pub async fn random_meme(
     State(state): State<Arc<RwLock<MemeService>>>,
@@ -18,20 +16,21 @@ pub async fn random_meme(
     
     match state.get_random().await {
         Ok((meme, content)) => {
-            let mut headers = HeaderMap::new();
-            headers.insert(header::CONTENT_TYPE, meme.mime_type.parse().unwrap());
+            let mut resp_headers = HeaderMap::new();
+            resp_headers.insert(header::CONTENT_TYPE, meme.mime_type.parse().unwrap());
             
-            let response = MemeResponse {
-                id: meme.id,
-                mime_type: meme.mime_type.clone(),
-            };
-            
-            tracing::debug!("Serving meme: {:?}", response);
-            (StatusCode::OK, headers, content).into_response()
+            // 记录访问信息
+            info!(
+                "返回表情包ID: {}, 类型: {}",
+                meme.id,
+                meme.mime_type
+            );
+
+            (StatusCode::OK, resp_headers, content)
         }
-        Err(e) => {
-            tracing::error!("Failed to get random meme: {}", e);
-            (StatusCode::INTERNAL_SERVER_ERROR, HeaderMap::new(), e.to_string().into_bytes()).into_response()
+        Err(_) => {
+            info!("获取表情包失败");
+            (StatusCode::INTERNAL_SERVER_ERROR, HeaderMap::new(), Vec::new())
         }
     }
 }
