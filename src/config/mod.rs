@@ -1,5 +1,4 @@
 use crate::utils::error::{AppError, Result};
-use dotenvy::dotenv;
 use serde::{Deserialize, Serialize};
 use std::{fs, path::Path, sync::Arc};
 
@@ -135,28 +134,3 @@ impl Config {
     }
 }
 
-pub fn load_config() -> std::io::Result<Arc<Config>> {
-    dotenv().ok();
-
-    let port = std::env::var("PORT")
-        .unwrap_or_else(|_| "3000".to_string())
-        .parse()
-        .unwrap_or(3000);
-
-    let memes_dir = std::env::var("MEMES_DIR")
-        .unwrap_or_else(|_| "assets/memes".to_string());
-
-    Ok(Arc::new(Config {
-        server: ServerConfig {
-            host: "0.0.0.0".to_string(),
-            port,
-            proxy: ProxyConfig::default(),
-        },
-        storage: StorageConfig { memes_dir },
-        cache: CacheConfig {
-            max_size: 1024,
-            ttl_secs: 3600,
-        },
-        logging: LoggingConfig::default(),
-    }))
-}
