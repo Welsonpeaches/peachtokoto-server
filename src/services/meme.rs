@@ -12,7 +12,10 @@ use notify::{RecursiveMode, Watcher};
 use std::sync::atomic::{AtomicU64, Ordering};
 use parking_lot::Mutex;
 
-const REQUEST_HISTORY_WINDOW: Duration = Duration::from_secs(60);
+const REQUEST_HISTORY_WINDOW: Duration = Duration::from_secs(60 * 15); // 扩展到15分钟
+const ONE_MINUTE: Duration = Duration::from_secs(60);
+const FIVE_MINUTES: Duration = Duration::from_secs(60 * 5);
+const FIFTEEN_MINUTES: Duration = Duration::from_secs(60 * 15);
 
 #[derive(Debug)]
 pub struct MemeService {
@@ -25,6 +28,7 @@ pub struct MemeService {
     request_count: AtomicU64,
     start_time: SystemTime,
     request_timestamps: Mutex<VecDeque<Instant>>,
+    last_updated: Mutex<SystemTime>,
 }
 
 impl MemeService {
@@ -70,6 +74,7 @@ impl MemeService {
             request_count: AtomicU64::new(0),
             start_time: SystemTime::now(),
             request_timestamps: Mutex::new(VecDeque::with_capacity(1000)),
+            last_updated: Mutex::new(SystemTime::now()),
         }));
 
         // 初始加载表情包
@@ -112,6 +117,7 @@ impl MemeService {
         self.memes = memes;
         self.total_count = count;
         self.content_cache.invalidate_all();
+        *self.last_updated.lock() = SystemTime::now();
 
         info!("重新加载了 {} 个表情包", count);
         Ok(())
@@ -189,18 +195,38 @@ impl MemeService {
         timestamps.push_back(now);
     }
 
-    pub fn get_requests_last_minute(&self) -> u64 {
-        let mut timestamps = self.request_timestamps.lock();
+    pub fn get_requests_in_window(&self, window: Duration) -> u64 {
         let now = Instant::now();
+        let mut timestamps = self.request_timestamps.lock();
         
-        // 移除超过一分钟的时间戳
-        while timestamps.front()
-            .map(|&t| now.duration_since(t) > REQUEST_HISTORY_WINDOW)
-            .unwrap_or(false) 
-        {
-            timestamps.pop_front();
+        // 清理超过窗口时间的记录
+        while let Some(timestamp) = timestamps.front() {
+            if now.duration_since(*timestamp) > REQUEST_HISTORY_WINDOW {
+                timestamps.pop_front();
+            } else {
+                break;
+            }
         }
         
-        timestamps.len() as u64
+        // 计算指定窗口内的请求数
+        timestamps.iter()
+            .filter(|&timestamp| now.duration_since(*timestamp) <= window)
+            .count() as u64
+    }
+
+    pub fn get_requests_last_minute(&self) -> u64 {
+        self.get_requests_in_window(ONE_MINUTE)
+    }
+
+    pub fn get_requests_last_5_minutes(&self) -> u64 {
+        self.get_requests_in_window(FIVE_MINUTES)
+    }
+
+    pub fn get_requests_last_15_minutes(&self) -> u64 {
+        self.get_requests_in_window(FIFTEEN_MINUTES)
+    }
+
+    pub fn get_last_updated(&self) -> SystemTime {
+        *self.last_updated.lock()
     }
 }
