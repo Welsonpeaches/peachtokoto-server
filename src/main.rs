@@ -90,6 +90,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let app = Router::new()
         .route("/memes/random", get(handlers::meme::random_meme))
         .route("/memes/health", get(handlers::meme::health_check))
+        .route("/statistics", get(handlers::statistics::get_statistics))
         .layer(
             TraceLayer::new_for_http()
                 .make_span_with(move |request: &axum::http::Request<_>| {

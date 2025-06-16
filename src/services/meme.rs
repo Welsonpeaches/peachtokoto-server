@@ -1,9 +1,18 @@
-use std::{collections::HashMap, sync::Arc, time::Duration, path::PathBuf};
+use std::{
+    collections::{HashMap, VecDeque},
+    sync::Arc,
+    time::{Duration, SystemTime, Instant},
+    path::PathBuf,
+};
 use tokio::sync::{RwLock, broadcast};
 use crate::utils::error::{Result, AppError};
 use crate::models::meme::Meme;
 use tracing::{info, error};
 use notify::{RecursiveMode, Watcher};
+use std::sync::atomic::{AtomicU64, Ordering};
+use parking_lot::Mutex;
+
+const REQUEST_HISTORY_WINDOW: Duration = Duration::from_secs(60);
 
 #[derive(Debug)]
 pub struct MemeService {
@@ -13,6 +22,9 @@ pub struct MemeService {
     memes_dir: PathBuf,
     reload_tx: broadcast::Sender<()>,
     _watcher: notify::RecommendedWatcher,
+    request_count: AtomicU64,
+    start_time: SystemTime,
+    request_timestamps: Mutex<VecDeque<Instant>>,
 }
 
 impl MemeService {
@@ -55,6 +67,9 @@ impl MemeService {
             memes_dir: memes_dir.clone(),
             reload_tx,
             _watcher: watcher,
+            request_count: AtomicU64::new(0),
+            start_time: SystemTime::now(),
+            request_timestamps: Mutex::new(VecDeque::with_capacity(1000)),
         }));
 
         // 初始加载表情包
@@ -125,6 +140,10 @@ impl MemeService {
     }
 
     pub async fn get_random(&self) -> Result<(&Meme, Vec<u8>)> {
+        // 增加请求计数并记录时间戳
+        self.request_count.fetch_add(1, Ordering::Relaxed);
+        self.record_request();
+        
         let meme_id = fastrand::u32(..self.total_count);
         let meme = self.memes.get(&meme_id)
             .ok_or_else(|| AppError::NotFound("Meme not found".to_string()))?;
@@ -141,5 +160,47 @@ impl MemeService {
         self.content_cache.insert(meme_id, content.clone()).await;
         
         Ok((meme, content))
+    }
+
+    pub fn get_request_count(&self) -> u64 {
+        self.request_count.load(Ordering::Relaxed)
+    }
+
+    pub fn get_total_memes(&self) -> usize {
+        self.memes.len()
+    }
+
+    pub fn get_start_time(&self) -> SystemTime {
+        self.start_time
+    }
+
+    fn record_request(&self) {
+        let mut timestamps = self.request_timestamps.lock();
+        let now = Instant::now();
+        
+        // 移除超过一分钟的时间戳
+        while timestamps.front()
+            .map(|&t| now.duration_since(t) > REQUEST_HISTORY_WINDOW)
+            .unwrap_or(false) 
+        {
+            timestamps.pop_front();
+        }
+        
+        timestamps.push_back(now);
+    }
+
+    pub fn get_requests_last_minute(&self) -> u64 {
+        let mut timestamps = self.request_timestamps.lock();
+        let now = Instant::now();
+        
+        // 移除超过一分钟的时间戳
+        while timestamps.front()
+            .map(|&t| now.duration_since(t) > REQUEST_HISTORY_WINDOW)
+            .unwrap_or(false) 
+        {
+            timestamps.pop_front();
+        }
+        
+        timestamps.len() as u64
     }
 }
