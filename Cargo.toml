@@ -20,6 +20,5 @@ thiserror = "1.0"
 moka = { version = "0.12", features = ["future"] }
 tower = { version = "0.4", features = ["util"] }
 tracing-appender = "0.2"
-sysinfo = "0.30.13"
 parking_lot = "0.12"
 time = { version = "0.3", features = ["formatting"] }
