@@ -26,6 +26,8 @@ pub struct MemeService {
     reload_tx: broadcast::Sender<()>,
     _watcher: notify::RecommendedWatcher,
     request_count: AtomicU64,
+    cache_hits: AtomicU64,
+    cache_misses: AtomicU64,
     start_time: SystemTime,
     request_timestamps: Mutex<VecDeque<Instant>>,
     last_updated: Mutex<SystemTime>,
@@ -72,6 +74,8 @@ impl MemeService {
             reload_tx,
             _watcher: watcher,
             request_count: AtomicU64::new(0),
+            cache_hits: AtomicU64::new(0),
+            cache_misses: AtomicU64::new(0),
             start_time: SystemTime::now(),
             request_timestamps: Mutex::new(VecDeque::with_capacity(1000)),
             last_updated: Mutex::new(SystemTime::now()),
@@ -157,11 +161,13 @@ impl MemeService {
         // 尝试从缓存获取
         if let Some(content) = self.content_cache.get(&meme_id).await {
             tracing::debug!("Cache hit for meme {}", meme_id);
+            self.cache_hits.fetch_add(1, Ordering::Relaxed);
             return Ok((meme, content));
         }
 
         // 如果缓存未命中，从文件读取
         tracing::debug!("Cache miss for meme {}, reading from disk", meme_id);
+        self.cache_misses.fetch_add(1, Ordering::Relaxed);
         let content = tokio::fs::read(&meme.path).await?;
         self.content_cache.insert(meme_id, content.clone()).await;
         
@@ -228,5 +234,11 @@ impl MemeService {
 
     pub fn get_last_updated(&self) -> SystemTime {
         *self.last_updated.lock()
+    }
+
+    pub fn get_cache_stats(&self) -> (u64, u64) {
+        let hits = self.cache_hits.load(Ordering::Relaxed);
+        let misses = self.cache_misses.load(Ordering::Relaxed);
+        (hits, misses)
     }
 }

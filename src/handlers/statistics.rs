@@ -17,6 +17,9 @@ pub struct Statistics {
     service_uptime_seconds: u64,
     total_memes: usize,
     last_updated: String,
+    cache_hits: u64,
+    cache_misses: u64,
+    cache_hit_rate: f64,
 }
 
 pub async fn get_statistics(
@@ -35,6 +38,15 @@ pub async fn get_statistics(
         .elapsed()
         .unwrap_or_default()
         .as_secs();
+
+    // 获取缓存统计信息
+    let (cache_hits, cache_misses) = service.get_cache_stats();
+    let total_cache_requests = cache_hits + cache_misses;
+    let cache_hit_rate = if total_cache_requests > 0 {
+        (cache_hits as f64 / total_cache_requests as f64) * 100.0
+    } else {
+        0.0
+    };
 
     // 格式化最后更新时间为ISO 8601格式
     let last_updated = service.get_last_updated()
@@ -56,5 +68,8 @@ pub async fn get_statistics(
         service_uptime_seconds: service_uptime,
         total_memes: service.get_total_memes(),
         last_updated,
+        cache_hits,
+        cache_misses,
+        cache_hit_rate,
     })
 } 
