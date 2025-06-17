@@ -180,7 +180,15 @@ impl MemeService {
         self.request_count.fetch_add(1, Ordering::Relaxed);
         self.record_request();
         
-        let meme_id = fastrand::u32(..self.total_count);
+        // 从所有可用的 ID 中随机选择一个
+        let ids: Vec<u32> = self.memes.keys().copied().collect();
+        if ids.is_empty() {
+            return Err(AppError::NotFound("No memes available".to_string()));
+        }
+        
+        let random_index = fastrand::usize(..ids.len());
+        let meme_id = ids[random_index];
+        
         let meme = self.memes.get(&meme_id)
             .ok_or_else(|| AppError::NotFound("Meme not found".to_string()))?;
 

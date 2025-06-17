@@ -1,5 +1,5 @@
 use axum::{
-    extract::{State, Path},
+    extract::{State, Path, Query},
     http::{header, HeaderMap, StatusCode},
     response::IntoResponse,
     Json,
@@ -8,9 +8,15 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 use tracing::info;
 use serde::Serialize;
+use serde::Deserialize;
 
 use crate::services::meme::MemeService;
 use crate::utils::error::AppError;
+
+#[derive(Deserialize)]
+pub struct RandomMemeQuery {
+    redirect: Option<bool>,
+}
 
 #[derive(Serialize)]
 pub struct MemeListItem {
@@ -22,11 +28,22 @@ pub struct MemeListItem {
 
 pub async fn random_meme(
     State(state): State<Arc<RwLock<MemeService>>>,
+    Query(query): Query<RandomMemeQuery>,
 ) -> impl IntoResponse {
     let state = state.read().await;
     
     match state.get_random().await {
         Ok((meme, content)) => {
+            // 如果设置了 redirect 参数，则重定向到 get 端点
+            if query.redirect.unwrap_or(false) {
+                let mut headers = HeaderMap::new();
+                headers.insert(
+                    header::LOCATION,
+                    format!("/memes/get/{}", meme.id).parse().unwrap()
+                );
+                return (StatusCode::FOUND, headers, Vec::new());
+            }
+
             let mut resp_headers = HeaderMap::new();
             resp_headers.insert(header::CONTENT_TYPE, meme.mime_type.parse().unwrap());
             
