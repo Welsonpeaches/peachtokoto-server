@@ -9,7 +9,7 @@ use tokio::sync::RwLock;
 use tracing::info;
 use serde::Serialize;
 use serde::Deserialize;
-use image::{self, ImageFormat, DynamicImage};
+use image::{self, ImageFormat};
 use std::io::Cursor;
 
 use crate::services::meme::MemeService;
