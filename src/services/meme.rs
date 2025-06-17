@@ -11,6 +11,7 @@ use tracing::{info, error};
 use notify::{RecursiveMode, Watcher};
 use std::sync::atomic::{AtomicU64, Ordering};
 use parking_lot::Mutex;
+use sha2::{Sha256, Digest};
 
 const REQUEST_HISTORY_WINDOW: Duration = Duration::from_secs(60 * 15); // 扩展到15分钟
 const ONE_MINUTE: Duration = Duration::from_secs(60);
@@ -112,15 +113,28 @@ impl MemeService {
                     .map(|metadata| metadata.len())
                     .unwrap_or(0);
 
+                // 计算文件名的 SHA-256 哈希值
+                let mut hasher = Sha256::new();
+                hasher.update(filename.as_bytes());
+                let hash = hasher.finalize();
+                
+                // 使用哈希值的前 4 个字节作为 ID
+                let id = u32::from_be_bytes([
+                    hash[0],
+                    hash[1],
+                    hash[2],
+                    hash[3],
+                ]);
+
                 let meme = Meme {
-                    id: count,
+                    id,
                     path,
                     mime_type,
                     filename,
                     size_bytes,
                 };
                 
-                memes.insert(count, meme);
+                memes.insert(id, meme);
                 count += 1;
             }
         }

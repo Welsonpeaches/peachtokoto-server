@@ -22,3 +22,4 @@ tower = { version = "0.4", features = ["util"] }
 tracing-appender = "0.2"
 parking_lot = "0.12"
 time = { version = "0.3", features = ["formatting"] }
+sha2 = "0.10"
