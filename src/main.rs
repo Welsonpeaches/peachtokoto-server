@@ -89,6 +89,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let config_clone = Arc::new(config.clone());
     let app = Router::new()
         .route("/memes/random", get(handlers::meme::random_meme))
+        .route("/memes/list", get(handlers::meme::list_memes))
         .route("/memes/health", get(handlers::meme::health_check))
         .route("/statistics", get(handlers::statistics::get_statistics))
         .layer(

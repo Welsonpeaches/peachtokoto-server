@@ -102,10 +102,22 @@ impl MemeService {
                     .first_or_octet_stream()
                     .to_string();
 
+                let filename = path.file_name()
+                    .and_then(|name| name.to_str())
+                    .unwrap_or("unknown")
+                    .to_string();
+
+                let size_bytes = tokio::fs::metadata(&path)
+                    .await
+                    .map(|metadata| metadata.len())
+                    .unwrap_or(0);
+
                 let meme = Meme {
                     id: count,
                     path,
                     mime_type,
+                    filename,
+                    size_bytes,
                 };
                 
                 memes.insert(count, meme);
@@ -240,5 +252,9 @@ impl MemeService {
         let hits = self.cache_hits.load(Ordering::Relaxed);
         let misses = self.cache_misses.load(Ordering::Relaxed);
         (hits, misses)
+    }
+
+    pub fn get_all_memes(&self) -> Vec<(&u32, &Meme)> {
+        self.memes.iter().collect()
     }
 }
