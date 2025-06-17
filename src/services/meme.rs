@@ -257,4 +257,28 @@ impl MemeService {
     pub fn get_all_memes(&self) -> Vec<(&u32, &Meme)> {
         self.memes.iter().collect()
     }
+
+    pub async fn get_by_id(&self, id: u32) -> Result<(&Meme, Vec<u8>)> {
+        // 增加请求计数并记录时间戳
+        self.request_count.fetch_add(1, Ordering::Relaxed);
+        self.record_request();
+        
+        let meme = self.memes.get(&id)
+            .ok_or_else(|| AppError::NotFound(format!("Meme with id {} not found", id)))?;
+
+        // 尝试从缓存获取
+        if let Some(content) = self.content_cache.get(&id).await {
+            tracing::debug!("Cache hit for meme {}", id);
+            self.cache_hits.fetch_add(1, Ordering::Relaxed);
+            return Ok((meme, content));
+        }
+
+        // 如果缓存未命中，从文件读取
+        tracing::debug!("Cache miss for meme {}, reading from disk", id);
+        self.cache_misses.fetch_add(1, Ordering::Relaxed);
+        let content = tokio::fs::read(&meme.path).await?;
+        self.content_cache.insert(id, content.clone()).await;
+        
+        Ok((meme, content))
+    }
 }

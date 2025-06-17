@@ -90,6 +90,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let app = Router::new()
         .route("/memes/random", get(handlers::meme::random_meme))
         .route("/memes/list", get(handlers::meme::list_memes))
+        .route("/memes/get/:id", get(handlers::meme::get_meme_by_id))
         .route("/memes/health", get(handlers::meme::health_check))
         .route("/statistics", get(handlers::statistics::get_statistics))
         .layer(
