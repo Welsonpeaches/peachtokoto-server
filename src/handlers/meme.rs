@@ -22,6 +22,12 @@ pub struct RandomMemeQuery {
     height: Option<u32>,
 }
 
+#[derive(Deserialize)]
+pub struct GetMemeQuery {
+    width: Option<u32>,
+    height: Option<u32>,
+}
+
 #[derive(Serialize)]
 pub struct MemeListItem {
     pub id: u32,
@@ -46,9 +52,24 @@ pub async fn random_meme(
             // 如果设置了 redirect 参数，则重定向到 get 端点
             if query.redirect.unwrap_or(false) {
                 let mut headers = HeaderMap::new();
+                let mut redirect_url = format!("/memes/get/{}", meme.id);
+                
+                // 添加压缩参数到重定向 URL（不包含 redirect 参数）
+                if query.width.is_some() || query.height.is_some() {
+                    redirect_url.push('?');
+                    let mut params = Vec::new();
+                    if let Some(width) = query.width {
+                        params.push(format!("width={}", width));
+                    }
+                    if let Some(height) = query.height {
+                        params.push(format!("height={}", height));
+                    }
+                    redirect_url.push_str(&params.join("&"));
+                }
+                
                 headers.insert(
                     header::LOCATION,
-                    format!("/memes/get/{}", meme.id).parse().unwrap()
+                    redirect_url.parse().unwrap()
                 );
                 return (StatusCode::FOUND, headers, Vec::new());
             }
@@ -125,6 +146,7 @@ pub async fn list_memes(
 pub async fn get_meme_by_id(
     State(state): State<Arc<RwLock<MemeService>>>,
     Path(id): Path<u32>,
+    Query(query): Query<GetMemeQuery>,
 ) -> impl IntoResponse {
     let state = state.read().await;
     
@@ -132,6 +154,35 @@ pub async fn get_meme_by_id(
         Ok((meme, content)) => {
             let mut resp_headers = HeaderMap::new();
             resp_headers.insert(header::CONTENT_TYPE, meme.mime_type.parse().unwrap());
+            
+            // 如果指定了宽高，则进行图片压缩
+            let content = if query.width.is_some() || query.height.is_some() {
+                match image::load_from_memory(&content) {
+                    Ok(img) => {
+                        let width = query.width.unwrap_or(img.width());
+                        let height = query.height.unwrap_or(img.height());
+                        
+                        // 保持宽高比进行缩放
+                        let resized = img.resize(width, height, image::imageops::FilterType::Lanczos3);
+                        
+                        // 将图片转换回字节
+                        let mut cursor = Cursor::new(Vec::new());
+                        match resized.write_to(&mut cursor, ImageFormat::from_mime_type(&meme.mime_type).unwrap_or(ImageFormat::Png)) {
+                            Ok(_) => cursor.into_inner(),
+                            Err(e) => {
+                                info!("图片压缩失败: {}", e);
+                                return (StatusCode::INTERNAL_SERVER_ERROR, HeaderMap::new(), Vec::new());
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        info!("图片加载失败: {}", e);
+                        return (StatusCode::INTERNAL_SERVER_ERROR, HeaderMap::new(), Vec::new());
+                    }
+                }
+            } else {
+                content
+            };
             
             // 记录访问信息
             info!(
