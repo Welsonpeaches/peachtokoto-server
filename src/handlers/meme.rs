@@ -9,6 +9,8 @@ use tokio::sync::RwLock;
 use tracing::info;
 use serde::Serialize;
 use serde::Deserialize;
+use image::{self, ImageFormat, DynamicImage};
+use std::io::Cursor;
 
 use crate::services::meme::MemeService;
 use crate::utils::error::AppError;
@@ -16,6 +18,8 @@ use crate::utils::error::AppError;
 #[derive(Deserialize)]
 pub struct RandomMemeQuery {
     redirect: Option<bool>,
+    width: Option<u32>,
+    height: Option<u32>,
 }
 
 #[derive(Serialize)]
@@ -52,6 +56,35 @@ pub async fn random_meme(
             let mut resp_headers = HeaderMap::new();
             resp_headers.insert(header::CONTENT_TYPE, meme.mime_type.parse().unwrap());
             
+            // 如果指定了宽高，则进行图片压缩
+            let content = if query.width.is_some() || query.height.is_some() {
+                match image::load_from_memory(&content) {
+                    Ok(img) => {
+                        let width = query.width.unwrap_or(img.width());
+                        let height = query.height.unwrap_or(img.height());
+                        
+                        // 保持宽高比进行缩放
+                        let resized = img.resize(width, height, image::imageops::FilterType::Lanczos3);
+                        
+                        // 将图片转换回字节
+                        let mut cursor = Cursor::new(Vec::new());
+                        match resized.write_to(&mut cursor, ImageFormat::from_mime_type(&meme.mime_type).unwrap_or(ImageFormat::Png)) {
+                            Ok(_) => cursor.into_inner(),
+                            Err(e) => {
+                                info!("图片压缩失败: {}", e);
+                                return (StatusCode::INTERNAL_SERVER_ERROR, HeaderMap::new(), Vec::new());
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        info!("图片加载失败: {}", e);
+                        return (StatusCode::INTERNAL_SERVER_ERROR, HeaderMap::new(), Vec::new());
+                    }
+                }
+            } else {
+                content
+            };
+
             // 记录访问信息
             info!(
                 "返回表情包ID: {}, 类型: {}",
