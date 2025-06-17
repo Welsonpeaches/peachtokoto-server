@@ -92,6 +92,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/memes/list", get(handlers::meme::list_memes))
         .route("/memes/get/:id", get(handlers::meme::get_meme_by_id))
         .route("/memes/health", get(handlers::meme::health_check))
+        .route("/memes/count", get(handlers::meme::get_meme_count))
         .route("/statistics", get(handlers::statistics::get_statistics))
         .layer(
             TraceLayer::new_for_http()

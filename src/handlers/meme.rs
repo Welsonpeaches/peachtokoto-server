@@ -26,6 +26,11 @@ pub struct MemeListItem {
     pub size_bytes: u64,
 }
 
+#[derive(Serialize)]
+pub struct MemeCount {
+    pub count: usize,
+}
+
 pub async fn random_meme(
     State(state): State<Arc<RwLock<MemeService>>>,
     Query(query): Query<RandomMemeQuery>,
@@ -113,6 +118,15 @@ pub async fn get_meme_by_id(
             (StatusCode::INTERNAL_SERVER_ERROR, HeaderMap::new(), Vec::new())
         }
     }
+}
+
+pub async fn get_meme_count(
+    State(state): State<Arc<RwLock<MemeService>>>,
+) -> Json<MemeCount> {
+    let service = state.read().await;
+    Json(MemeCount {
+        count: service.get_total_memes(),
+    })
 }
 
 pub async fn health_check() -> impl IntoResponse {
