@@ -4,24 +4,45 @@ use axum::{
     Json,
 };
 use tokio::sync::RwLock;
+use utoipa::ToSchema;
 use crate::services::meme::MemeService;
 use time::OffsetDateTime;
 
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, ToSchema)]
 pub struct Statistics {
+    #[schema(example = 1000)]
     total_requests: u64,
+    #[schema(example = 10)]
     requests_last_minute: u64,
+    #[schema(example = 50)]
     requests_last_5min: u64,
+    #[schema(example = 150)]
     requests_last_15min: u64,
+    #[schema(example = 86400)]
     system_uptime_seconds: u64,
+    #[schema(example = 3600)]
     service_uptime_seconds: u64,
+    #[schema(example = 100)]
     total_memes: usize,
+    #[schema(example = "2024-01-01T00:00:00Z")]
     last_updated: String,
+    #[schema(example = 800)]
     cache_hits: u64,
+    #[schema(example = 200)]
     cache_misses: u64,
+    #[schema(example = 80.0)]
     cache_hit_rate: f64,
 }
 
+/// 获取服务器统计信息
+#[utoipa::path(
+    get,
+    path = "/statistics",
+    tag = "statistics",
+    responses(
+        (status = 200, description = "成功返回统计信息", body = Statistics)
+    )
+)]
 pub async fn get_statistics(
     State(state): State<Arc<RwLock<MemeService>>>,
 ) -> Json<Statistics> {

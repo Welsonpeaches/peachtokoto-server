@@ -34,6 +34,7 @@ mod handlers;
 mod models;
 mod services;
 mod utils;
+mod openapi;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -94,6 +95,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/memes/health", get(handlers::meme::health_check))
         .route("/memes/count", get(handlers::meme::get_meme_count))
         .route("/statistics", get(handlers::statistics::get_statistics))
+        .merge(openapi::swagger_ui())
         .layer(
             TraceLayer::new_for_http()
                 .make_span_with(move |request: &axum::http::Request<_>| {

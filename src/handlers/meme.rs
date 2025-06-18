@@ -11,36 +11,62 @@ use serde::Serialize;
 use serde::Deserialize;
 use image::{self, ImageFormat};
 use std::io::Cursor;
+use utoipa::ToSchema;
+use utoipa::IntoParams;
 
 use crate::services::meme::MemeService;
 use crate::utils::error::AppError;
 
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema, utoipa::IntoParams)]
 pub struct RandomMemeQuery {
+    #[schema(example = false)]
     redirect: Option<bool>,
+    #[schema(example = 300)]
     width: Option<u32>,
+    #[schema(example = 300)]
     height: Option<u32>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema, utoipa::IntoParams)]
 pub struct GetMemeQuery {
+    #[schema(example = 300)]
     width: Option<u32>,
+    #[schema(example = 300)]
     height: Option<u32>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 pub struct MemeListItem {
+    #[schema(example = 1)]
     pub id: u32,
+    #[schema(example = "image/jpeg")]
     pub mime_type: String,
+    #[schema(example = "funny_meme.jpg")]
     pub filename: String,
+    #[schema(example = 1024)]
     pub size_bytes: u64,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 pub struct MemeCount {
+    #[schema(example = 100)]
     pub count: usize,
 }
 
+/// 获取随机表情包
+#[utoipa::path(
+    get,
+    path = "/memes/random",
+    tag = "memes",
+    params(RandomMemeQuery),
+    responses(
+        (status = 200, description = "成功返回随机表情包图片", content_type = "image/*"),
+        (status = 302, description = "重定向到指定表情包", headers(
+            ("Location" = String, description = "重定向URL")
+        )),
+        (status = 500, description = "服务器内部错误")
+    )
+)]
 pub async fn random_meme(
     State(state): State<Arc<RwLock<MemeService>>>,
     Query(query): Query<RandomMemeQuery>,
@@ -122,6 +148,15 @@ pub async fn random_meme(
     }
 }
 
+/// 获取表情包列表
+#[utoipa::path(
+    get,
+    path = "/memes/list",
+    tag = "memes",
+    responses(
+        (status = 200, description = "成功返回表情包列表", body = Vec<MemeListItem>)
+    )
+)]
 pub async fn list_memes(
     State(state): State<Arc<RwLock<MemeService>>>,
 ) -> Json<Vec<MemeListItem>> {
@@ -143,6 +178,21 @@ pub async fn list_memes(
     Json(meme_list)
 }
 
+/// 根据ID获取表情包
+#[utoipa::path(
+    get,
+    path = "/memes/get/{id}",
+    tag = "memes",
+    params(
+        ("id" = u32, Path, description = "表情包ID"),
+        GetMemeQuery
+    ),
+    responses(
+        (status = 200, description = "成功返回指定表情包图片", content_type = "image/*"),
+        (status = 404, description = "表情包不存在"),
+        (status = 500, description = "服务器内部错误")
+    )
+)]
 pub async fn get_meme_by_id(
     State(state): State<Arc<RwLock<MemeService>>>,
     Path(id): Path<u32>,
@@ -204,6 +254,15 @@ pub async fn get_meme_by_id(
     }
 }
 
+/// 获取表情包总数
+#[utoipa::path(
+    get,
+    path = "/memes/count",
+    tag = "memes",
+    responses(
+        (status = 200, description = "成功返回表情包总数", body = MemeCount)
+    )
+)]
 pub async fn get_meme_count(
     State(state): State<Arc<RwLock<MemeService>>>,
 ) -> Json<MemeCount> {
@@ -213,6 +272,15 @@ pub async fn get_meme_count(
     })
 }
 
+/// 健康检查
+#[utoipa::path(
+    get,
+    path = "/memes/health",
+    tag = "memes",
+    responses(
+        (status = 200, description = "服务健康")
+    )
+)]
 pub async fn health_check() -> impl IntoResponse {
     StatusCode::OK
 }
