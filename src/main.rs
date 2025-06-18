@@ -89,6 +89,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 构建应用路由
     let config_clone = Arc::new(config.clone());
     let app = Router::new()
+        .route("/", get(|| async { axum::response::Redirect::to("/swagger-ui") }))
         .route("/memes/random", get(handlers::meme::random_meme))
         .route("/memes/list", get(handlers::meme::list_memes))
         .route("/memes/get/:id", get(handlers::meme::get_meme_by_id))

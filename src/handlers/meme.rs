@@ -12,7 +12,6 @@ use serde::Deserialize;
 use image::{self, ImageFormat};
 use std::io::Cursor;
 use utoipa::ToSchema;
-use utoipa::IntoParams;
 
 use crate::services::meme::MemeService;
 use crate::utils::error::AppError;
