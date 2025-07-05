@@ -9,8 +9,7 @@ use tokio::sync::RwLock;
 use tracing::info;
 use serde::Serialize;
 use serde::Deserialize;
-use image::{self, ImageFormat};
-use std::io::Cursor;
+
 use utoipa::ToSchema;
 
 use crate::services::meme::MemeService;
@@ -100,42 +99,29 @@ pub async fn random_meme(
             }
 
             let mut resp_headers = HeaderMap::new();
-            resp_headers.insert(header::CONTENT_TYPE, meme.mime_type.parse().unwrap());
             
-            // 如果指定了宽高，则进行图片压缩
-            let content = if query.width.is_some() || query.height.is_some() {
-                match image::load_from_memory(&content) {
-                    Ok(img) => {
-                        let width = query.width.unwrap_or(img.width());
-                        let height = query.height.unwrap_or(img.height());
-                        
-                        // 保持宽高比进行缩放
-                        let resized = img.resize(width, height, image::imageops::FilterType::Lanczos3);
-                        
-                        // 将图片转换回字节
-                        let mut cursor = Cursor::new(Vec::new());
-                        match resized.write_to(&mut cursor, ImageFormat::from_mime_type(&meme.mime_type).unwrap_or(ImageFormat::Png)) {
-                            Ok(_) => cursor.into_inner(),
-                            Err(e) => {
-                                info!("图片压缩失败: {}", e);
-                                return (StatusCode::INTERNAL_SERVER_ERROR, HeaderMap::new(), Vec::new());
-                            }
-                        }
+            // 使用优化的压缩图片方法
+            let (final_meme, content) = if query.width.is_some() || query.height.is_some() {
+                match state.get_resized_image(meme.id, query.width, query.height).await {
+                    Ok((resized_meme, resized_content)) => {
+                        resp_headers.insert(header::CONTENT_TYPE, "image/png".parse().unwrap());
+                        (resized_meme, resized_content)
                     }
                     Err(e) => {
-                        info!("图片加载失败: {}", e);
+                        info!("获取压缩图片失败: {}", e);
                         return (StatusCode::INTERNAL_SERVER_ERROR, HeaderMap::new(), Vec::new());
                     }
                 }
             } else {
-                content
+                resp_headers.insert(header::CONTENT_TYPE, meme.mime_type.parse().unwrap());
+                (meme, content)
             };
 
             // 记录访问信息
             info!(
                 "返回表情包ID: {}, 类型: {}",
-                meme.id,
-                meme.mime_type
+                final_meme.id,
+                final_meme.mime_type
             );
 
             (StatusCode::OK, resp_headers, content)
@@ -199,39 +185,23 @@ pub async fn get_meme_by_id(
 ) -> impl IntoResponse {
     let state = state.read().await;
     
-    match state.get_by_id(id).await {
+    // 使用优化的压缩图片方法
+    let result = if query.width.is_some() || query.height.is_some() {
+        state.get_resized_image(id, query.width, query.height).await
+    } else {
+        state.get_by_id(id).await
+    };
+    
+    match result {
         Ok((meme, content)) => {
             let mut resp_headers = HeaderMap::new();
-            resp_headers.insert(header::CONTENT_TYPE, meme.mime_type.parse().unwrap());
             
-            // 如果指定了宽高，则进行图片压缩
-            let content = if query.width.is_some() || query.height.is_some() {
-                match image::load_from_memory(&content) {
-                    Ok(img) => {
-                        let width = query.width.unwrap_or(img.width());
-                        let height = query.height.unwrap_or(img.height());
-                        
-                        // 保持宽高比进行缩放
-                        let resized = img.resize(width, height, image::imageops::FilterType::Lanczos3);
-                        
-                        // 将图片转换回字节
-                        let mut cursor = Cursor::new(Vec::new());
-                        match resized.write_to(&mut cursor, ImageFormat::from_mime_type(&meme.mime_type).unwrap_or(ImageFormat::Png)) {
-                            Ok(_) => cursor.into_inner(),
-                            Err(e) => {
-                                info!("图片压缩失败: {}", e);
-                                return (StatusCode::INTERNAL_SERVER_ERROR, HeaderMap::new(), Vec::new());
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        info!("图片加载失败: {}", e);
-                        return (StatusCode::INTERNAL_SERVER_ERROR, HeaderMap::new(), Vec::new());
-                    }
-                }
+            // 根据是否压缩设置正确的Content-Type
+            if query.width.is_some() || query.height.is_some() {
+                resp_headers.insert(header::CONTENT_TYPE, "image/png".parse().unwrap());
             } else {
-                content
-            };
+                resp_headers.insert(header::CONTENT_TYPE, meme.mime_type.parse().unwrap());
+            }
             
             // 记录访问信息
             info!(

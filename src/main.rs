@@ -68,9 +68,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .init();
 
     tracing::info!("日志系统初始化完成");
-
-    // 加载配置文件
-    let config = config::Config::load_from_file("config.yml")?;
     tracing::info!("Configuration loaded successfully");
 
     // 初始化 MemeService

@@ -21,8 +21,12 @@ const FIFTEEN_MINUTES: Duration = Duration::from_secs(60 * 15);
 #[derive(Debug)]
 pub struct MemeService {
     memes: HashMap<u32, Meme>,
+    // 预计算的ID向量，避免每次随机选择时重新收集
+    meme_ids: Vec<u32>,
     total_count: u32,
     content_cache: moka::future::Cache<u32, Vec<u8>>,
+    // 添加压缩图片缓存
+    resized_cache: moka::future::Cache<String, Vec<u8>>,
     memes_dir: PathBuf,
     reload_tx: broadcast::Sender<()>,
     _watcher: notify::RecommendedWatcher,
@@ -60,17 +64,25 @@ impl MemeService {
         watcher.watch(&memes_dir, RecursiveMode::Recursive)?;
         info!("开始监控目录: {:?}", memes_dir);
 
-        // 初始化缓存
+        // 初始化缓存 - 增加缓存容量
         let content_cache = moka::future::Cache::builder()
             .max_capacity(max_size)
             .time_to_live(Duration::from_secs(ttl_secs))
+            .build();
+            
+        // 初始化压缩图片缓存
+        let resized_cache = moka::future::Cache::builder()
+            .max_capacity(max_size * 2) // 压缩图片缓存容量更大
+            .time_to_live(Duration::from_secs(ttl_secs * 2)) // 压缩图片缓存时间更长
             .build();
 
         // 创建服务实例
         let service = Arc::new(RwLock::new(Self {
             memes: HashMap::new(),
+            meme_ids: Vec::new(),
             total_count: 0,
             content_cache,
+            resized_cache,
             memes_dir: memes_dir.clone(),
             reload_tx,
             _watcher: watcher,
@@ -78,7 +90,7 @@ impl MemeService {
             cache_hits: AtomicU64::new(0),
             cache_misses: AtomicU64::new(0),
             start_time: SystemTime::now(),
-            request_timestamps: Mutex::new(VecDeque::with_capacity(1000)),
+            request_timestamps: Mutex::new(VecDeque::with_capacity(2000)), // 增加容量
             last_updated: Mutex::new(SystemTime::now()),
         }));
 
@@ -145,8 +157,11 @@ impl MemeService {
 
         // 更新服务状态
         self.memes = memes;
+        // 预计算ID向量以提高随机选择性能
+        self.meme_ids = self.memes.keys().copied().collect();
         self.total_count = count;
         self.content_cache.invalidate_all();
+        self.resized_cache.invalidate_all();
         *self.last_updated.lock() = SystemTime::now();
 
         info!("重新加载了 {} 个表情包", count);
@@ -180,14 +195,13 @@ impl MemeService {
         self.request_count.fetch_add(1, Ordering::Relaxed);
         self.record_request();
         
-        // 从所有可用的 ID 中随机选择一个
-        let ids: Vec<u32> = self.memes.keys().copied().collect();
-        if ids.is_empty() {
+        // 使用预计算的ID向量进行随机选择，避免每次重新收集
+        if self.meme_ids.is_empty() {
             return Err(AppError::NotFound("No memes available".to_string()));
         }
         
-        let random_index = fastrand::usize(..ids.len());
-        let meme_id = ids[random_index];
+        let random_index = fastrand::usize(..self.meme_ids.len());
+        let meme_id = self.meme_ids[random_index];
         
         let meme = self.memes.get(&meme_id)
             .ok_or_else(|| AppError::NotFound("Meme not found".to_string()))?;
@@ -302,5 +316,57 @@ impl MemeService {
         self.content_cache.insert(id, content.clone()).await;
         
         Ok((meme, content))
+    }
+
+    /// 获取压缩后的图片，支持缓存
+    pub async fn get_resized_image(&self, id: u32, width: Option<u32>, height: Option<u32>) -> Result<(&Meme, Vec<u8>)> {
+        let meme = self.memes.get(&id)
+            .ok_or_else(|| AppError::NotFound(format!("Meme with id {} not found", id)))?;
+
+        // 如果没有指定尺寸，直接返回原图
+        if width.is_none() && height.is_none() {
+            return self.get_by_id(id).await;
+        }
+
+        // 生成缓存键
+        let cache_key = format!("{}:{}x{}", id, width.unwrap_or(0), height.unwrap_or(0));
+        
+        // 尝试从压缩图片缓存获取
+        if let Some(content) = self.resized_cache.get(&cache_key).await {
+            tracing::debug!("Resized cache hit for {}", cache_key);
+            self.cache_hits.fetch_add(1, Ordering::Relaxed);
+            return Ok((meme, content));
+        }
+
+        // 获取原图
+        let (_, original_content) = self.get_by_id(id).await?;
+        
+        // 压缩图片
+        let resized_content = tokio::task::spawn_blocking(move || {
+            use image::{ImageFormat, imageops::FilterType};
+            use std::io::Cursor;
+            
+            let img = image::load_from_memory(&original_content)
+                .map_err(|e| AppError::Internal(format!("Failed to load image: {}", e)))?;
+            
+            let target_width = width.unwrap_or(img.width());
+            let target_height = height.unwrap_or(img.height());
+            
+            // 使用更快的滤波器进行缩放
+            let resized = img.resize(target_width, target_height, FilterType::Triangle);
+            
+            let mut cursor = Cursor::new(Vec::new());
+            resized.write_to(&mut cursor, ImageFormat::Png)
+                .map_err(|e| AppError::Internal(format!("Failed to encode image: {}", e)))?;
+            
+            Ok::<Vec<u8>, AppError>(cursor.into_inner())
+        }).await
+        .map_err(|e| AppError::Internal(format!("Task join error: {}", e)))??;
+
+        // 缓存压缩后的图片
+        self.resized_cache.insert(cache_key, resized_content.clone()).await;
+        self.cache_misses.fetch_add(1, Ordering::Relaxed);
+        
+        Ok((meme, resized_content))
     }
 }
