@@ -14,6 +14,7 @@ use utoipa::ToSchema;
 
 use crate::services::meme::MemeService;
 use crate::utils::error::AppError;
+use crate::metrics::{REQUEST_COUNTER, RESPONSE_TIME};
 
 #[derive(Deserialize, ToSchema, utoipa::IntoParams)]
 pub struct RandomMemeQuery {
@@ -69,6 +70,8 @@ pub async fn random_meme(
     State(state): State<Arc<RwLock<MemeService>>>,
     Query(query): Query<RandomMemeQuery>,
 ) -> impl IntoResponse {
+    REQUEST_COUNTER.inc();
+    let _timer = crate::metrics::Timer::new(&RESPONSE_TIME);
     let state = state.read().await;
     
     match state.get_random().await {
@@ -119,9 +122,11 @@ pub async fn random_meme(
 
             // 记录访问信息
             info!(
-                "返回表情包ID: {}, 类型: {}",
-                final_meme.id,
-                final_meme.mime_type
+                meme_id = final_meme.id,
+                mime_type = %final_meme.mime_type,
+                file_size = final_meme.size_bytes,
+                cache_used = query.width.is_some() || query.height.is_some(),
+                "Serving random meme"
             );
 
             (StatusCode::OK, resp_headers, content)
@@ -183,6 +188,8 @@ pub async fn get_meme_by_id(
     Path(id): Path<u32>,
     Query(query): Query<GetMemeQuery>,
 ) -> impl IntoResponse {
+    REQUEST_COUNTER.inc();
+    let _timer = crate::metrics::Timer::new(&RESPONSE_TIME);
     let state = state.read().await;
     
     // 使用优化的压缩图片方法
@@ -205,9 +212,11 @@ pub async fn get_meme_by_id(
             
             // 记录访问信息
             info!(
-                "返回表情包ID: {}, 类型: {}",
-                meme.id,
-                meme.mime_type
+                meme_id = meme.id,
+                mime_type = %meme.mime_type,
+                file_size = meme.size_bytes,
+                cache_used = query.width.is_some() || query.height.is_some(),
+                "Serving meme by ID"
             );
 
             (StatusCode::OK, resp_headers, content)
@@ -252,4 +261,18 @@ pub async fn get_meme_count(
 )]
 pub async fn health_check() -> impl IntoResponse {
     StatusCode::OK
+}
+
+/// 获取Prometheus指标
+#[utoipa::path(
+    get,
+    path = "/metrics",
+    tag = "monitoring",
+    responses(
+        (status = 200, description = "Prometheus metrics", content_type = "text/plain")
+    )
+)]
+pub async fn get_metrics() -> impl IntoResponse {
+    let metrics = crate::metrics::get_metrics();
+    (StatusCode::OK, [("Content-Type", "text/plain; charset=utf-8")], metrics)
 }

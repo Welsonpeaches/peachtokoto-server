@@ -35,9 +35,13 @@ mod models;
 mod services;
 mod utils;
 mod openapi;
+mod metrics;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // 初始化指标
+    metrics::init_metrics();
+    
     // 加载配置文件
     let config = config::Config::load_from_file("config.yml")?;
     
@@ -53,9 +57,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .expect("创建日志文件失败");
 
     // 初始化日志系统
+    let log_level = std::env::var("LOG_LEVEL")
+        .unwrap_or_else(|_| "info".to_string());
+    
     tracing_subscriber::registry()
-        .with(tracing_subscriber::EnvFilter::try_from_default_env()
-            .unwrap_or_else(|_| "info".into()))
+        .with(tracing_subscriber::EnvFilter::new(log_level))
         .with(tracing_subscriber::fmt::layer()
             .with_writer(file_appender)
             .with_ansi(false)
@@ -93,6 +99,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/memes/health", get(handlers::meme::health_check))
         .route("/memes/count", get(handlers::meme::get_meme_count))
         .route("/statistics", get(handlers::statistics::get_statistics))
+        .route("/metrics", get(handlers::meme::get_metrics))
         .merge(openapi::swagger_ui())
         .layer(
             TraceLayer::new_for_http()

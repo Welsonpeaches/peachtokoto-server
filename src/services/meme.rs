@@ -7,7 +7,8 @@ use std::{
 use tokio::sync::{RwLock, broadcast};
 use crate::utils::error::{Result, AppError};
 use crate::models::meme::Meme;
-use tracing::{info, error};
+use crate::metrics::{CACHE_HIT_RATE, CACHE_SIZE};
+use tracing::{info, error, debug};
 use notify::{RecursiveMode, Watcher};
 use std::sync::atomic::{AtomicU64, Ordering};
 use parking_lot::Mutex;
@@ -208,14 +209,24 @@ impl MemeService {
 
         // 尝试从缓存获取
         if let Some(content) = self.content_cache.get(&meme_id).await {
-            tracing::debug!("Cache hit for meme {}", meme_id);
             self.cache_hits.fetch_add(1, Ordering::Relaxed);
+            self.update_cache_metrics();
+            debug!(
+                meme_id = meme_id,
+                cache_type = "content",
+                "Cache hit"
+            );
             return Ok((meme, content));
         }
 
         // 如果缓存未命中，从文件读取
-        tracing::debug!("Cache miss for meme {}, reading from disk", meme_id);
         self.cache_misses.fetch_add(1, Ordering::Relaxed);
+        self.update_cache_metrics();
+        debug!(
+            meme_id = meme_id,
+            cache_type = "content",
+            "Cache miss"
+        );
         let content = tokio::fs::read(&meme.path).await?;
         self.content_cache.insert(meme_id, content.clone()).await;
         
@@ -294,6 +305,19 @@ impl MemeService {
         self.memes.iter().collect()
     }
 
+    fn update_cache_metrics(&self) {
+        let hits = self.cache_hits.load(Ordering::Relaxed);
+        let misses = self.cache_misses.load(Ordering::Relaxed);
+        let total = hits + misses;
+        
+        if total > 0 {
+            let hit_rate = hits as f64 / total as f64;
+            CACHE_HIT_RATE.set(hit_rate);
+        }
+        
+        CACHE_SIZE.set(self.content_cache.entry_count() as f64);
+    }
+
     pub async fn get_by_id(&self, id: u32) -> Result<(&Meme, Vec<u8>)> {
         // 增加请求计数并记录时间戳
         self.request_count.fetch_add(1, Ordering::Relaxed);
@@ -304,14 +328,24 @@ impl MemeService {
 
         // 尝试从缓存获取
         if let Some(content) = self.content_cache.get(&id).await {
-            tracing::debug!("Cache hit for meme {}", id);
             self.cache_hits.fetch_add(1, Ordering::Relaxed);
+            self.update_cache_metrics();
+            debug!(
+                meme_id = id,
+                cache_type = "content",
+                "Cache hit"
+            );
             return Ok((meme, content));
         }
 
         // 如果缓存未命中，从文件读取
-        tracing::debug!("Cache miss for meme {}, reading from disk", id);
         self.cache_misses.fetch_add(1, Ordering::Relaxed);
+        self.update_cache_metrics();
+        debug!(
+            meme_id = id,
+            cache_type = "content",
+            "Cache miss"
+        );
         let content = tokio::fs::read(&meme.path).await?;
         self.content_cache.insert(id, content.clone()).await;
         
@@ -333,8 +367,14 @@ impl MemeService {
         
         // 尝试从压缩图片缓存获取
         if let Some(content) = self.resized_cache.get(&cache_key).await {
-            tracing::debug!("Resized cache hit for {}", cache_key);
             self.cache_hits.fetch_add(1, Ordering::Relaxed);
+            self.update_cache_metrics();
+            debug!(
+                meme_id = id,
+                cache_type = "resized",
+                cache_key = cache_key,
+                "Cache hit"
+            );
             return Ok((meme, content));
         }
 
@@ -364,8 +404,15 @@ impl MemeService {
         .map_err(|e| AppError::Internal(format!("Task join error: {}", e)))??;
 
         // 缓存压缩后的图片
-        self.resized_cache.insert(cache_key, resized_content.clone()).await;
+        self.resized_cache.insert(cache_key.clone(), resized_content.clone()).await;
         self.cache_misses.fetch_add(1, Ordering::Relaxed);
+        self.update_cache_metrics();
+        debug!(
+            meme_id = id,
+            cache_type = "resized",
+            cache_key = cache_key,
+            "Cache miss"
+        );
         
         Ok((meme, resized_content))
     }

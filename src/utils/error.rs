@@ -1,37 +1,64 @@
 use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
+    Json,
 };
-use thiserror::Error;
+use serde_json::json;
 
-#[derive(Error, Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum AppError {
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
-    #[error("Internal server error: {0}")]
-    Internal(String),
+    
+    #[error("Image processing error: {0}")]
+    ImageProcessing(String),
+    
+    #[error("Cache error: {0}")]
+    Cache(String),
+    
+    #[error("Configuration error: {0}")]
+    Config(String),
+    
+    #[error("Meme not found: {id}")]
+    MemeNotFound { id: u32 },
+    
+    #[error("Invalid request: {0}")]
+    InvalidRequest(String),
+    
     #[error("Not found: {0}")]
     NotFound(String),
+    
+    #[error("Internal server error: {0}")]
+    Internal(String),
+    
+    #[error("Bad request: {0}")]
+    BadRequest(String),
+    
     #[error("File system error: {0}")]
     FileSystem(#[from] notify::Error),
 }
 
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
-        let (status, message) = match self {
-            AppError::Io(err) => (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                format!("IO Error: {}", err),
-            ),
-            AppError::Internal(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg),
-            AppError::NotFound(msg) => (StatusCode::NOT_FOUND, msg),
-            AppError::FileSystem(err) => (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                format!("File System Error: {}", err),
-            ),
+        let (status, error_message) = match self {
+            AppError::Io(_) => (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error"),
+            AppError::ImageProcessing(_) => (StatusCode::INTERNAL_SERVER_ERROR, "Image processing error"),
+            AppError::Cache(_) => (StatusCode::INTERNAL_SERVER_ERROR, "Cache error"),
+            AppError::Config(_) => (StatusCode::INTERNAL_SERVER_ERROR, "Configuration error"),
+            AppError::MemeNotFound { .. } => (StatusCode::NOT_FOUND, "Meme not found"),
+            AppError::InvalidRequest(_) => (StatusCode::BAD_REQUEST, "Invalid request"),
+            AppError::NotFound(_) => (StatusCode::NOT_FOUND, "Not found"),
+            AppError::Internal(_) => (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error"),
+            AppError::BadRequest(_) => (StatusCode::BAD_REQUEST, "Bad request"),
+            AppError::FileSystem(_) => (StatusCode::INTERNAL_SERVER_ERROR, "File system error"),
         };
 
-        (status, message).into_response()
+        let body = Json(json!({
+            "error": error_message,
+            "message": self.to_string()
+        }));
+
+        (status, body).into_response()
     }
 }
 

@@ -123,6 +123,9 @@ impl Config {
         let config: Config = serde_yaml::from_str(&config_str)
             .map_err(|e| AppError::Internal(format!("Failed to parse config file: {}", e)))?;
 
+        // 验证配置
+        config.validate()?;
+
         // 确保表情包目录存在
         if !Path::new(&config.storage.memes_dir).exists() {
             fs::create_dir_all(&config.storage.memes_dir)
@@ -131,6 +134,30 @@ impl Config {
         }
 
         Ok(Arc::new(config))
+    }
+
+    pub fn validate(&self) -> Result<()> {
+        if self.cache.max_size == 0 {
+            return Err(AppError::Internal("Cache max_size must be greater than 0".to_string()));
+        }
+        
+        if self.cache.ttl_secs == 0 {
+            return Err(AppError::Internal("Cache TTL must be greater than 0".to_string()));
+        }
+        
+        if self.server.port == 0 {
+            return Err(AppError::Internal("Server port must be greater than 0".to_string()));
+        }
+        
+        if self.server.host.is_empty() {
+            return Err(AppError::Internal("Server host cannot be empty".to_string()));
+        }
+        
+        if self.storage.memes_dir.is_empty() {
+            return Err(AppError::Internal("Memes directory path cannot be empty".to_string()));
+        }
+        
+        Ok(())
     }
 }
 
