@@ -28,6 +28,27 @@ lazy_static! {
     pub static ref IMAGE_PROCESSING_TIME: Histogram = Histogram::with_opts(
         HistogramOpts::new("meme_image_processing_duration_seconds", "Time spent processing images")
     ).unwrap();
+    
+    // 新增的统计指标
+    pub static ref SERVICE_UPTIME_SECONDS: Gauge = Gauge::with_opts(
+        Opts::new("service_uptime_seconds", "Service uptime in seconds")
+    ).unwrap();
+    
+    pub static ref TOTAL_MEMES: Gauge = Gauge::with_opts(
+        Opts::new("total_memes", "Total number of memes available")
+    ).unwrap();
+    
+    pub static ref LAST_UPDATED_TIMESTAMP: Gauge = Gauge::with_opts(
+        Opts::new("last_updated_timestamp", "Last updated timestamp (Unix timestamp)")
+    ).unwrap();
+    
+    pub static ref CACHE_HITS: Counter = Counter::with_opts(
+        Opts::new("cache_hits_total", "Total number of cache hits")
+    ).unwrap();
+    
+    pub static ref CACHE_MISSES: Counter = Counter::with_opts(
+        Opts::new("cache_misses_total", "Total number of cache misses")
+    ).unwrap();
 }
 
 pub fn init_metrics() {
@@ -37,6 +58,13 @@ pub fn init_metrics() {
     REGISTRY.register(Box::new(CACHE_SIZE.clone())).unwrap();
     REGISTRY.register(Box::new(ACTIVE_CONNECTIONS.clone())).unwrap();
     REGISTRY.register(Box::new(IMAGE_PROCESSING_TIME.clone())).unwrap();
+    
+    // 注册新增的指标
+    REGISTRY.register(Box::new(SERVICE_UPTIME_SECONDS.clone())).unwrap();
+    REGISTRY.register(Box::new(TOTAL_MEMES.clone())).unwrap();
+    REGISTRY.register(Box::new(LAST_UPDATED_TIMESTAMP.clone())).unwrap();
+    REGISTRY.register(Box::new(CACHE_HITS.clone())).unwrap();
+    REGISTRY.register(Box::new(CACHE_MISSES.clone())).unwrap();
 }
 
 pub fn get_metrics() -> String {

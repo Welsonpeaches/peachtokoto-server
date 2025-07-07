@@ -6,6 +6,10 @@ use axum::{
 use tokio::sync::RwLock;
 use utoipa::ToSchema;
 use crate::services::meme::MemeService;
+use crate::metrics::{
+    SERVICE_UPTIME_SECONDS, TOTAL_MEMES, LAST_UPDATED_TIMESTAMP,
+    CACHE_HITS, CACHE_MISSES, CACHE_HIT_RATE
+};
 use time::OffsetDateTime;
 
 #[derive(serde::Serialize, ToSchema)]
@@ -70,6 +74,11 @@ pub async fn get_statistics(
     };
 
     // 格式化最后更新时间为ISO 8601格式
+    let last_updated_timestamp = service.get_last_updated()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    
     let last_updated = service.get_last_updated()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| {
@@ -79,6 +88,16 @@ pub async fn get_statistics(
                 .unwrap_or_else(|_| "Unknown".to_string())
         })
         .unwrap_or_else(|_| "Unknown".to_string());
+    
+    // 更新 Prometheus 指标
+    SERVICE_UPTIME_SECONDS.set(service_uptime as f64);
+    TOTAL_MEMES.set(service.get_total_memes() as f64);
+    LAST_UPDATED_TIMESTAMP.set(last_updated_timestamp as f64);
+    CACHE_HITS.reset();
+    CACHE_HITS.inc_by(cache_hits as f64);
+    CACHE_MISSES.reset();
+    CACHE_MISSES.inc_by(cache_misses as f64);
+    CACHE_HIT_RATE.set(cache_hit_rate / 100.0); // 转换为 0-1 范围
     
     Json(Statistics {
         total_requests: service.get_request_count(),
@@ -93,4 +112,4 @@ pub async fn get_statistics(
         cache_misses,
         cache_hit_rate,
     })
-} 
+}

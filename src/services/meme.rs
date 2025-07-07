@@ -7,7 +7,7 @@ use std::{
 use tokio::sync::{RwLock, broadcast};
 use crate::utils::error::{Result, AppError};
 use crate::models::meme::Meme;
-use crate::metrics::{CACHE_HIT_RATE, CACHE_SIZE};
+use crate::metrics::{CACHE_HIT_RATE, CACHE_SIZE, CACHE_HITS, CACHE_MISSES, TOTAL_MEMES};
 use tracing::{info, error, debug};
 use notify::{RecursiveMode, Watcher};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -164,6 +164,9 @@ impl MemeService {
         self.content_cache.invalidate_all();
         self.resized_cache.invalidate_all();
         *self.last_updated.lock() = SystemTime::now();
+        
+        // 更新 Prometheus 指标
+        TOTAL_MEMES.set(count as f64);
 
         info!("重新加载了 {} 个表情包", count);
         Ok(())
@@ -210,6 +213,7 @@ impl MemeService {
         // 尝试从缓存获取
         if let Some(content) = self.content_cache.get(&meme_id).await {
             self.cache_hits.fetch_add(1, Ordering::Relaxed);
+            CACHE_HITS.inc(); // 更新 Prometheus 计数器
             self.update_cache_metrics();
             debug!(
                 meme_id = meme_id,
@@ -221,6 +225,7 @@ impl MemeService {
 
         // 如果缓存未命中，从文件读取
         self.cache_misses.fetch_add(1, Ordering::Relaxed);
+        CACHE_MISSES.inc(); // 更新 Prometheus 计数器
         self.update_cache_metrics();
         debug!(
             meme_id = meme_id,
@@ -329,6 +334,7 @@ impl MemeService {
         // 尝试从缓存获取
         if let Some(content) = self.content_cache.get(&id).await {
             self.cache_hits.fetch_add(1, Ordering::Relaxed);
+            CACHE_HITS.inc(); // 更新 Prometheus 计数器
             self.update_cache_metrics();
             debug!(
                 meme_id = id,
@@ -340,6 +346,7 @@ impl MemeService {
 
         // 如果缓存未命中，从文件读取
         self.cache_misses.fetch_add(1, Ordering::Relaxed);
+        CACHE_MISSES.inc(); // 更新 Prometheus 计数器
         self.update_cache_metrics();
         debug!(
             meme_id = id,
@@ -368,6 +375,7 @@ impl MemeService {
         // 尝试从压缩图片缓存获取
         if let Some(content) = self.resized_cache.get(&cache_key).await {
             self.cache_hits.fetch_add(1, Ordering::Relaxed);
+            CACHE_HITS.inc(); // 更新 Prometheus 计数器
             self.update_cache_metrics();
             debug!(
                 meme_id = id,
