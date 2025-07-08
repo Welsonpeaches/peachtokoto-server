@@ -42,6 +42,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 初始化指标
     metrics::init_metrics();
     
+    // 记录服务启动时间
+    let start_time = std::time::SystemTime::now();
+    metrics::set_service_start_time(start_time);
+    
     // 加载配置文件
     let config = config::Config::load_from_file("config.yml")?;
     

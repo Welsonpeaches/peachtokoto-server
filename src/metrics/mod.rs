@@ -1,6 +1,10 @@
 use prometheus::{Counter, Histogram, Gauge, Registry, Encoder, TextEncoder, Opts, HistogramOpts};
 use lazy_static::lazy_static;
-use std::time::Instant;
+use std::time::{Instant, SystemTime};
+use std::sync::OnceLock;
+
+// 全局服务启动时间
+static SERVICE_START_TIME: OnceLock<SystemTime> = OnceLock::new();
 
 lazy_static! {
     pub static ref REGISTRY: Registry = Registry::new();
@@ -67,7 +71,19 @@ pub fn init_metrics() {
     REGISTRY.register(Box::new(CACHE_MISSES.clone())).unwrap();
 }
 
+/// 设置服务启动时间
+pub fn set_service_start_time(start_time: SystemTime) {
+    SERVICE_START_TIME.set(start_time).ok();
+}
+
 pub fn get_metrics() -> String {
+    // 按需更新服务运行时间
+    if let Some(start_time) = SERVICE_START_TIME.get() {
+        if let Ok(uptime) = start_time.elapsed() {
+            SERVICE_UPTIME_SECONDS.set(uptime.as_secs() as f64);
+        }
+    }
+    
     let encoder = TextEncoder::new();
     let metric_families = REGISTRY.gather();
     let mut buffer = Vec::new();
