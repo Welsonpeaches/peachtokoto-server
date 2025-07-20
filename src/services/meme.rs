@@ -116,10 +116,11 @@ impl MemeService {
                     .first_or_octet_stream()
                     .to_string();
 
+                // 使用 to_string_lossy 来处理包含 emoji 或其他 Unicode 字符的文件名
+                // 这样可以避免在 macOS 和 Linux 上因为 Unicode 规范化差异导致的问题
                 let filename = path.file_name()
-                    .and_then(|name| name.to_str())
-                    .unwrap_or("unknown")
-                    .to_string();
+                    .map(|name| name.to_string_lossy().to_string())
+                    .unwrap_or_else(|| "unknown".to_string());
 
                 let size_bytes = tokio::fs::metadata(&path)
                     .await
