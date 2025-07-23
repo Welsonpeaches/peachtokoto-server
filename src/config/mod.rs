@@ -34,12 +34,26 @@ pub struct LoggingConfig {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct SwaggerConfig {
+    pub title: String,
+    pub description: String,
+    pub version: String,
+    pub endpoint: String,
+    pub contact_name: String,
+    pub contact_email: String,
+    pub server_url: String,
+    pub server_description: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Config {
     pub server: ServerConfig,
     pub storage: StorageConfig,
     pub cache: CacheConfig,
     #[serde(default)]
     pub logging: LoggingConfig,
+    #[serde(default)]
+    pub swagger: SwaggerConfig,
 }
 
 impl Default for LoggingConfig {
@@ -60,6 +74,21 @@ impl Default for ProxyConfig {
     }
 }
 
+impl Default for SwaggerConfig {
+    fn default() -> Self {
+        Self {
+            title: "Jiangtokoto Server API".to_string(),
+            description: "表情包服务器API文档".to_string(),
+            version: "1.0.0".to_string(),
+            endpoint: "/swagger-ui".to_string(),
+            contact_name: "API Support".to_string(),
+            contact_email: "support@example.com".to_string(),
+            server_url: "https://api.jiangtokoto.cn".to_string(),
+            server_description: "生产服务器".to_string(),
+        }
+    }
+}
+
 impl Default for Config {
     fn default() -> Self {
         Self {
@@ -76,6 +105,7 @@ impl Default for Config {
                 ttl_secs: 300,
             },
             logging: LoggingConfig::default(),
+            swagger: SwaggerConfig::default(),
         }
     }
 }
@@ -85,7 +115,6 @@ impl Config {
         let path = path.as_ref();
 
         // 如果配置文件不存在，创建默认配置
-        // 如果配置文件不存在
         if !path.exists() {
             // 检查示例配置文件是否存在
             let example_path = path.with_extension("yml.example");

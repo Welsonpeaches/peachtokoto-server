@@ -29,3 +29,22 @@ cache:
   max_size: 500
   # 缓存生存时间（秒）- 增加缓存时间以提高性能
   ttl_secs: 1800
+
+# Swagger UI 配置 Swagger UI Configuration
+swagger:
+  # API 文档标题
+  title: "Jiangtokoto Server API"
+  # API 文档描述
+  description: "表情包服务器API文档"
+  # API 版本
+  version: "1.0.0"
+  # Swagger UI 访问端点
+  endpoint: "/swagger-ui"
+  # 联系人姓名
+  contact_name: "API Support"
+  # 联系人邮箱
+  contact_email: "support@example.com"
+  # 服务器地址
+  server_url: "https://api.jiangtokoto.cn"
+  # 服务器描述
+  server_description: "生产服务器"

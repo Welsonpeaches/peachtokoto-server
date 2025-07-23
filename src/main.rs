@@ -104,7 +104,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/memes/count", get(handlers::meme::get_meme_count))
         .route("/statistics", get(handlers::statistics::get_statistics))
         .route("/metrics", get(handlers::meme::get_metrics))
-        .merge(openapi::swagger_ui())
+        .merge(openapi::create_swagger_ui(config.swagger.clone()))
         .layer(
             TraceLayer::new_for_http()
                 .make_span_with(move |request: &axum::http::Request<_>| {
