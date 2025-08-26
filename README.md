@@ -136,3 +136,10 @@ RUST_LOG=debug cargo run
 ## 许可证
 
 MIT License
+
+# 
+
+感谢UndefFtr🤚😭🤚
+好人一生平安🤚😭🤚
+
+![1a8992dc69619b582883adbff45d4c5e](https://github.com/user-attachments/assets/3b215cbc-94a8-49d4-ad87-43001998c5ac)
