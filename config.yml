@@ -16,12 +16,12 @@ logging:
   # 日志文件目录
   directory: "logs"
   # 日志文件前缀
-  file_prefix: "jiangtokoto"
+  file_prefix: "peachtokoto"
 
 # 存储配置 Storage Configuration
 storage:
   # 表情包图片存储目录
-  memes_dir: "assets/jiangtokoto-images/images"
+  memes_dir: "images"
 
 # 缓存配置 Cache Configuration
 cache:
@@ -33,9 +33,9 @@ cache:
 # Swagger UI 配置 Swagger UI Configuration
 swagger:
   # API 文档标题
-  title: "Jiangtokoto Server API"
+  title: "Peachtokoto Server API"
   # API 文档描述
-  description: "表情包服务器API文档"
+  description: "桃子的非常神秘语录，可以代替91了"
   # API 版本
   version: "1.0.0"
   # Swagger UI 访问端点
@@ -43,8 +43,8 @@ swagger:
   # 联系人姓名
   contact_name: "API Support"
   # 联系人邮箱
-  contact_email: "support@example.com"
+  contact_email: "2822554898@qq.com"
   # 服务器地址
-  server_url: "https://api.jiangtokoto.cn"
+  server_url: "https://tokotoapi.moonpeaches.xyz"
   # 服务器描述
-  server_description: "生产服务器"
+  server_description: "？？？？？？？？？？？？？？？"
